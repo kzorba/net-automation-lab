@@ -1,0 +1,46 @@
+version: '3'
+services:
+  salt-master:
+    build:
+      context: .
+      dockerfile: Dockerfile.master
+    image: kzorba/salt-master:2017.7
+    #image: kzorba/salt-master:2018.3
+    hostname: ${MASTER}
+    container_name: ${MASTER}
+    environment:
+      - MASTER_LOG_LEVEL
+    volumes:
+      - ./master:/etc/salt/master
+      - ./pillar/:/etc/salt/pillar/
+      - ./states/:/etc/salt/states/
+  proxy_1:
+    build:    
+      context: .
+      dockerfile: Dockerfile.proxy
+    image: kzorba/salt-master:2017.7
+    #image: kzorba/salt-proxy:2018.3
+    hostname: ${PROXY_1}
+    container_name: ${PROXY_1}
+    volumes:
+      - ./proxy:/etc/salt/proxy
+    environment:
+      - PROXY_LOG_LEVEL
+      - PROXYID=${PROXY_1}
+    depends_on:
+      - salt-master
+  proxy_2:
+    build:    
+      context: .
+      dockerfile: Dockerfile.proxy
+    image: kzorba/salt-master:2017.7
+    #image: kzorba/salt-proxy:2018.3
+    hostname: ${PROXY_2}
+    container_name: ${PROXY_2}
+    volumes:
+      - ./proxy:/etc/salt/proxy
+    environment:
+      - PROXY_LOG_LEVEL
+      - PROXYID=${PROXY_2}
+    depends_on:
+      - salt-master

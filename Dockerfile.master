@@ -1,0 +1,43 @@
+FROM phusion/baseimage:0.11
+MAINTAINER kzorba@nixly.net
+
+# ...put your own build instructions here...
+## Install min deps
+RUN apt-get update \
+  && apt-get install -y apt-utils \
+  && apt-get install -y wget 
+
+# Uncomment *one* of the sections below to get salt 2018.3 or 2017.7
+
+# 2018.3 salt installation for Ubuntu 18 (bionic)
+#RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
+#	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3/SALTSTACK-GPG-KEY.pub | apt-key add - \
+#	&& apt-get update
+
+
+# 2017.7 salt installation for Ubuntu 18 (bionic)
+RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
+	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7/SALTSTACK-GPG-KEY.pub | apt-key add - \
+	&& apt-get update
+
+# Install the Salt Master
+RUN apt-get install -y salt-master
+## Copy the Master config file
+ADD master /etc/salt/master
+
+# Salt Master service 
+RUN mkdir /etc/service/salt-master
+ADD run-master.sh /etc/service/salt-master/run
+RUN chmod +x /etc/service/salt-master/run
+
+# Install salt-ssh
+RUN apt-get install -y salt-ssh
+
+# Clean up APT when done.
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Ports
+EXPOSE 4505 4506
+
+# Use baseimage-docker's init system.
+CMD ["/sbin/my_init"]
