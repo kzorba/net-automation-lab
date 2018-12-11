@@ -18,7 +18,7 @@ services:
     build:    
       context: .
       dockerfile: Dockerfile.proxy
-    image: kzorba/salt-master:2017.7
+    image: kzorba/salt-proxy:2017.7
     #image: kzorba/salt-proxy:2018.3
     hostname: ${PROXY_1}
     container_name: ${PROXY_1}
@@ -33,7 +33,7 @@ services:
     build:    
       context: .
       dockerfile: Dockerfile.proxy
-    image: kzorba/salt-master:2017.7
+    image: kzorba/salt-proxy:2017.7
     #image: kzorba/salt-proxy:2018.3
     hostname: ${PROXY_2}
     container_name: ${PROXY_2}
