@@ -1,11 +1,9 @@
 base:
+  '*':
+    - ntp_servers
   proxy-vmx1:
-    - dummy_pillar
+    - proxy-vmx1
+    - vmx1.interfaces
   proxy-vmx2:
-    - dummy_pillar
-  dummy:
-    - dummy_pillar
-  junos-box:
-    - junos_pillar
-  napalm-box:
-    - napalm_pillar
+    - proxy-vmx2
+    - vmx2.interfaces

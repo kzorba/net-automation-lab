@@ -1,0 +1,35 @@
+---
+interfaces:
+  # management interface
+  - name: "fxp0"
+    description: "vmx1 mgmt interface"
+    subinterfaces:
+      - index: 0
+        description: "vmx1 fxp0.0"
+        ipv4: 
+          - "172.16.0.10/24"
+        ipv6: 
+          - "fd00::10/64"
+  # loopback interface
+  - name: "lo0"
+    description: "vmx1 loopback interface"
+    subinterfaces:
+      - index: 0
+        description: "vmx1 lo0.0"
+        ipv4: 
+          - "127.0.0.1"
+          - "13.13.13.1/32"
+        ipv6: 
+          - "::1"
+          - "fd00:13::1/128"
+  # p2p vmx1 <-> vmx2
+  - name: "ge-0/0/0"
+    description: "net1_p2p"
+    mtu: 9000
+    subinterfaces:
+      - index: 0
+        description: "p2p vmx1 - vmx2"
+        ipv4: 
+          - "10.1.0.9/30"
+        ipv6: 
+          - "fd00:1::9/127"

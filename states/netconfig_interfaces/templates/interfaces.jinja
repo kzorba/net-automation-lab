@@ -1,0 +1,76 @@
+{%- if grains.os|lower == 'junos' %}
+
+{# We first deal with fxp0, lo0 that go in the openjnpr-container-vmx group #}
+{%- for if_name, if_details in data.interfaces.interface.items() %}
+{%- if (if_name == 'lo0')  or (if_name == 'fxp0') %}
+groups {
+  openjnpr-container-vmx {
+    interfaces {
+      replace: {{ if_name }} {
+        description "{{ if_details.config.description }}";
+        {%- set subif = if_details.subinterfaces.subinterface %}
+        {%- for subif_id, subif_details in subif.items() %}
+        unit {{ subif_id }} {
+          description "{{ subif_details.config.description }}";
+          {%- if subif_details.ipv4 %}
+          family inet {
+          {%- set subif_addrs = subif_details.ipv4.addresses.address %}
+          {%- for _, addr in subif_addrs.items() %}
+            address {{ addr.config.ip }}/{{ addr.config['prefix-length'] }};
+          {%- endfor %}
+          }
+          {%- endif %}
+
+          {%- if subif_details.ipv6 %}
+          family inet6 {
+          {%- set subif_addrs = subif_details.ipv6.addresses.address %}
+          {%- for _, addr in subif_addrs.items() %}
+            address  {{ addr.config.ip }}/{{ addr.config['prefix-length'] }};
+          {%- endfor %}
+          }
+          {%- endif %} 
+        }
+        {%- endfor %}
+      }
+    }
+  }
+}
+{%- endif %}
+{%- endfor %}
+
+replace: 
+interfaces {
+    {%- for if_name, if_details in data.interfaces.interface.items() %}
+    {%- if (if_name != 'lo0') and (if_name != 'fxp0')  %}
+    {{ if_name }} {
+        description "{{ if_details.config.description }}";
+        mtu {{ if_details.config.mtu }};
+        {%- set subif = if_details.subinterfaces.subinterface %}
+        {%- for subif_id, subif_details in subif.items() %}
+        unit {{ subif_id }} {
+            description "{{ subif_details.config.description }}";
+            {%- if subif_details.ipv4 %}
+            family inet {
+            {%- set subif_addrs = subif_details.ipv4.addresses.address %}
+            {%- for _, addr in subif_addrs.items() %}
+                address {{ addr.config.ip }}/{{ addr.config['prefix-length'] }};
+            {%- endfor %}
+            }
+            {%- endif %}
+         
+            {%- if subif_details.ipv6 %}
+            family inet6 {
+            {%- set subif_addrs = subif_details.ipv6.addresses.address %}
+            {%- for _, addr in subif_addrs.items() %}
+                address {{ addr.config.ip }}/{{ addr.config['prefix-length'] }};
+            {%- endfor %}
+            }
+            {%- endif %}
+        }
+        {%- endfor %}
+    }
+    {%- endif %}
+    {%- endfor %}
+}
+
+{%- endif %}

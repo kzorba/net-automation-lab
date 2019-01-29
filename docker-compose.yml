@@ -1,46 +1,127 @@
-version: '3'
+version: '2.1'
+
 services:
+
   salt-master:
     build:
       context: .
       dockerfile: Dockerfile.master
-    image: kzorba/salt-master:2017.7
-    #image: kzorba/salt-master:2018.3
+    #image: kzorba/salt-master:2017.7
+    image: kzorba/salt-master:2018.3
     hostname: ${MASTER}
     container_name: ${MASTER}
+    networks:
+      - net0-mgmt
     environment:
       - MASTER_LOG_LEVEL
     volumes:
       - ./master:/etc/salt/master
       - ./pillar/:/etc/salt/pillar/
       - ./states/:/etc/salt/states/
+
   proxy_1:
     build:    
       context: .
       dockerfile: Dockerfile.proxy
-    image: kzorba/salt-proxy:2017.7
-    #image: kzorba/salt-proxy:2018.3
+    #image: kzorba/salt-proxy:2017.7
+    image: kzorba/salt-proxy:2018.3
     hostname: ${PROXY_1}
     container_name: ${PROXY_1}
+    networks:
+      - net0-mgmt
     volumes:
       - ./proxy:/etc/salt/proxy
+      - $PWD/proxy.d/:/etc/salt/proxy.d/
+      - $PWD/napalm-ssh-keys/:/u/napalm-ssh-keys/
     environment:
       - PROXY_LOG_LEVEL
       - PROXYID=${PROXY_1}
     depends_on:
       - salt-master
+
   proxy_2:
     build:    
       context: .
       dockerfile: Dockerfile.proxy
-    image: kzorba/salt-proxy:2017.7
-    #image: kzorba/salt-proxy:2018.3
+    #image: kzorba/salt-proxy:2017.7
+    image: kzorba/salt-proxy:2018.3
     hostname: ${PROXY_2}
     container_name: ${PROXY_2}
+    networks:
+      - net0-mgmt
     volumes:
       - ./proxy:/etc/salt/proxy
+      - $PWD/proxy.d/:/etc/salt/proxy.d/
+      - $PWD/napalm-ssh-keys/:/u/napalm-ssh-keys/
     environment:
       - PROXY_LOG_LEVEL
       - PROXYID=${PROXY_2}
     depends_on:
       - salt-master
+
+  router_1:
+    image: ${ROUTER_1_DOCKER_IMAGE}
+    hostname: ${ROUTER_1}
+    container_name: ${ROUTER_1}
+    privileged: true
+    tty: true
+    stdin_open: true
+    ports:
+      - "22"
+      - "830"
+    environment:
+      - ID=${ROUTER_1}
+      - LICENSE=${ROUTER_1_LICENSE}
+      - IMAGE=${ROUTER_1_JUNOS_IMAGE}
+      - PUBLICKEY=${PUBLIC_KEY}
+      - CONFIG=${ROUTER_1_CONFIG}
+#      - VMXT=vmxt.conf
+    volumes:
+      - $PWD/juniper-vmx:/u:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      net0-mgmt:
+        ipv4_address: 172.16.0.10
+        ipv6_address: fd00::10
+      net1-p2p:
+
+  router_2:
+    image: ${ROUTER_2_DOCKER_IMAGE}
+    hostname: ${ROUTER_2}
+    container_name: ${ROUTER_2}
+    privileged: true
+    tty: true
+    stdin_open: true
+    ports:
+      - "22"
+      - "830"
+    environment:
+      - ID=${ROUTER_2}
+      - LICENSE=${ROUTER_2_LICENSE}
+      - IMAGE=${ROUTER_2_JUNOS_IMAGE}
+      - PUBLICKEY=${PUBLIC_KEY}
+      - CONFIG=${ROUTER_2_CONFIG}
+#      - VMXT=vmxt.conf
+    volumes:
+      - $PWD/juniper-vmx:/u:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      net0-mgmt:
+        ipv4_address: 172.16.0.11
+        ipv6_address: fd00::11
+      net1-p2p:
+
+networks:
+  net0-mgmt:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
+        - subnet: fd00::/64
+  net1-p2p:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 10.1.0.0/24
+        - subnet: fd00:1::/64
+

@@ -1,13 +1,32 @@
-#!/bin/bash
+# net-lab parameters
 
+# Uncomment/comment below to get the desired version of Salt
+# master and proxy
+#TAG_MASTER=kzorba/salt-master:2017.7
+TAG_MASTER=kzorba/salt-master:2018.3
+#TAG_PROXY=kzorba/salt-proxy:2017.7
+TAG_PROXY=kzorba/salt-proxy:2018.3
 # salt master hostname/container name
-export MASTER=salt-master
+MASTER=salt-master
 # salt proxy hostname/container name
-export PROXY_1=proxy-vmx1
+PROXY_1=proxy-vmx1
 # salt proxy hostname/container name
-export PROXY_2=proxy-vmx2
+PROXY_2=proxy-vmx2
 # salt master LOG_LEVEL
-export MASTER_LOG_LEVEL=warning
+MASTER_LOG_LEVEL=warning
 # salt proxies LOG_LEVEL
-export PROXY_LOG_LEVEL=warning
-
+PROXY_LOG_LEVEL=info
+# Public key of user to login to routers
+PUBLIC_KEY=id_rsa.pub
+# router 1
+ROUTER_1_DOCKER_IMAGE=juniper/openjnpr-container-vmx:trusty
+ROUTER_1=vmx1
+ROUTER_1_LICENSE=vMX_license.txt
+ROUTER_1_JUNOS_IMAGE=junos-vmx-x86-64-17.3R2.10.qcow2
+ROUTER_1_CONFIG=vmx1.conf
+# router 2
+ROUTER_2_DOCKER_IMAGE=juniper/openjnpr-container-vmx:bionic
+ROUTER_2=vmx2
+ROUTER_2_LICENSE=vMX_license.txt
+ROUTER_2_JUNOS_IMAGE=junos-vmx-x86-64-18.2R1.9.qcow2
+ROUTER_2_CONFIG=vmx2.conf
