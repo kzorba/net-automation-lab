@@ -2,22 +2,24 @@ FROM phusion/baseimage:0.11
 MAINTAINER kzorba@nixly.net
 
 # ...put your own build instructions here...
-## Install min deps
-RUN apt-get update \
+# Install min deps and helpful tools
+RUN export DEBIAN_FRONTEND=noninteractive \
+  && apt-get update \
   && apt-get install -y apt-utils \
-  && apt-get install -y wget 
+  && apt-get install -y wget \
+  && apt-get install -y iproute2 iputils-ping
 
 # Uncomment *one* of the sections below to get salt 2018.3 or 2017.7
 
 # 2018.3 salt installation for Ubuntu 18 (bionic)
-#RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
-#	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3/SALTSTACK-GPG-KEY.pub | apt-key add - \
-#	&& apt-get update
+RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
+	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2018.3/SALTSTACK-GPG-KEY.pub | apt-key add - \
+	&& apt-get update
 
 # 2017.7 salt installation for Ubuntu 18 (bionic)
-RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
-	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7/SALTSTACK-GPG-KEY.pub | apt-key add - \
-	&& apt-get update
+#RUN echo 'deb http://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7 bionic main' >>  /etc/apt/sources.list.d/saltstack.list \
+#	&& wget -O - https://repo.saltstack.com/apt/ubuntu/18.04/amd64/2017.7/SALTSTACK-GPG-KEY.pub | apt-key add - \
+#	&& apt-get update
 
 # Install the Salt minion
 RUN apt-get install -y salt-minion
@@ -30,7 +32,8 @@ RUN apt-get install -y python-cffi python-dev libxslt1-dev libssl-dev libffi-dev
   && apt-get install -y python-pip \
   && pip install -U cffi \
   && pip install -U cryptography \
-  && pip install napalm
+  && pip install napalm \
+  && pip install napalm-yang
 
 # Salt Proxy service 
 RUN mkdir /etc/service/salt-proxy
