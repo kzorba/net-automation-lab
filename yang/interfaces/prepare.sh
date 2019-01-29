@@ -2,7 +2,7 @@
 #
 # Prepares everything required to run gen-interfaces-pillar.py
 # Generates binding.py needed by pyangbind and creates informational
-# tree represantations of the relevant Openconfig models
+# tree representations of the relevant Openconfig models
 #
 SDIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYBINDPLUGIN=`/usr/bin/env python -c 'import pyangbind; import os; print ("{}/plugin".format(os.path.dirname(pyangbind.__file__)))'`
