@@ -1,0 +1,776 @@
+//
+// file: README.adoc
+//
+
+= A network automation lab using docker containers
+Doc Writer Kostas Zorbadelos
+:toc: left
+:toclevels: 3
+:imagesdir: images
+
+:toc:
+
+== Description
+This project is a lab to demonstrate orchestration and configuration
+of network devices using Salt. We initially target Juniper vMX devices
+and we use the NAPALM library, integrated in Salt. The entire
+environment is based on docker containers so it can run on any Linux
+server/workstation that has a docker engine installation. A Linux
+kernel 4.4.0 and kvm hardware acceleration is a minimum requirement to
+support the vMX containers.
+
+Our initial topology is very simple, just 2 interconnected
+routers. The setup contains 3 containers for Salt components (one
+master and two proxy minions, each minion controlling one router) and
+one container per vMX router (so 5 containers in total). All
+containers are connected to a management network and the vMX routers
+are also connected via point-to-point links.
+
+[#img-topology]
+.*Net lab topology:* _Linux server running docker engine. Environment run using docker-compose_
+[caption=""]
+image::net-automation-lab.png[Lab Topology,float="left"]
+
+In this environment we provide the following test configuration
+management cases
+
+* ntp 
+* interfaces
+
+Devices configuration data exist in the Salt Pillar and the
+configuration utilizes the Salt state system, specifically
+https://docs.saltstack.com/en/latest/ref/states/all/salt.states.netconfig.html#module-salt.states.netconfig[`netconfig`]
+module with handwritten templates. The configuration data of
+interfaces conform to the Openconfig interfaces YANG 
+model. This way, data are available in a standardised
+vendor-neutral format that could be also utilized as-is in the future
+for loading settings to Openconfig compliant devices. 
+The intention is to incorporate extra cases over time and simulate
+more complex device topologies. Using this setup we can also run Salt
+execution commands, demonstrating the remote execution capabilities.
+
+We base our docker images on
+https://github.com/phusion/baseimage-docker[`phusion/baseimage:0.11`]
+(utilizing Ubuntu 18.04). Salt containers use branch `2018.3`(Oxygen) by default
+but we can also build/utilize container images using salt
+`2017.7`(Nitrogen) (just uncomment/comment the relevant stuff in the
+Dockerfiles and docker-compose.yml).
+
+The setup is controlled via a Makefile, a parameter file and
+docker-compose. 
+
+== Installation
+=== Prerequisites
+In order to run the lab you will need to have installed `docker engine`,
+`docker-compose` and `GNU Make`. A script to generate interfaces pillar
+data according to the Openconfig interfaces YANG model is also
+provided. To run this you would need `Python 3` and `pipenv`. For
+installing these components refer to the documentation of your
+favorite Linux distribution.
+
+After that do a
+
+ $ git clone https://github.com/kzorba/net-automation-lab.git --recursive
+
+=== Get Juniper vMX
+The lab routers run as docker containers. We utilize Juniper's work
+published in the
+https://github.com/Juniper/OpenJNPR-Container-vMX[Juniper/OpenJNPR-Container-vMX]
+repo. You will however need to download separately the JunOS .qcow2
+files and have a valid license (Juniper provides an eval
+license). Juniper's repo provides instructions for the necessary steps
+needed to run vMX as a container (with the relevant system settings).
+
+For our lab, all you need to do is enable hugepages support and place
+the JunOS .qcow2 images and the license file inside `./juniper-vmx`
+directory. Our setup expects `junos-vmx-x86-64-17.3R2.10.qcow2`,
+`junos-vmx-x86-64-18.2R1.9.qcow2` and a license file in
+`vMX_license.txt`. Of course you can change that by editing
+`net-lab.params` file. The docker images required for running the
+routers are prebuilt and available in docker hub registry.
+
+=== Build Salt docker images
+After cloning the repository do a
+
+ $ make build
+
+to build the salt master and salt proxy docker images. By default
+images use the latest release in `2018.3` (Oxygen) Salt branch. In
+case you need to also build images for `2017.7` (Nitrogen) set the
+`TAG_MASTER`, `TAG_PROXY` variables in `net-lab.params` file and
+uncomment/comment the relevant lines in `Dockerfile.master`,
+`Dockerfile.proxy`. 
+
+=== [Optional] Generate ssh key pair
+A test ssh key-pair is included in the repository. It is used for user
+login in JunOS machines and NAPALM driver connectivity to the
+routers. The public key is in `juniper-vmx/id_rsa.pub` and is utilized
+on boot of the JunOS devices (a relevant user is created in JunOS)
+while the corresponding private key is in
+`napalm-ssh-keys/id_rsa`. Needless to say, the private key should not
+be exposed normally, avoid using a production key-pair in this lab
+playground. The user is encouraged to create a different key-pair using
+
+ $ ssh-keygen -b 2048 -t rsa
+
+The key-pair included in the repository is given for convenience to
+have everything working out of the box. You could also configure
+NAPALM to use a username/password combination, see
+`pillar/proxy-vmx1.sls`, `pillar/proxy-vmx2.sls`. The JunOS
+username/password are given by running `juniper-vmx/getpass.sh` after
+the images have started and are fully functional (takes a few minutes).
+
+=== Run the lab
+After completing all the above steps issue
+
+ $ make start
+
+from the top level repo directory and the environment should
+start. `docker-compose` controls the environment and creates the
+necessary images and networks.
+
+ $ make master-cli
+
+will give you a shell inside salt-master where you can issue salt
+commands.
+
+ $ docker attach vmx1
+ $ docker attach vmx2
+
+provide access to the vMX consoles (exit using ^P ^Q).
+Watch JunOS consoles or their docker containers' logs to see when they
+are up and fully functional. Running `getpass.sh` should also give you
+indication and when fully up and running you will see something like
+
+....
+kzorba@host:~/WorkingArea/net-automation-lab$ ./juniper-vmx/getpass.sh 
+vMX vmx1 (v4:172.16.0.10 v6:fd00::10) 17.3R2.10 shaetheefiofifaongeiphii         ready
+vMX vmx2 (v4:172.16.0.11 v6:fd00::11) 18.2R1.9 ooj8noeTheiFook6aengeib9          ready
+....
+
+== Usage
+Using this environment, we can issue remote execution commands, get
+Salt pillar/grains data or make configuration changes. All commands
+are issued from the salt-master
+
+....
+kzorba@host:~/WorkingArea/net-automation-lab$ make master-cli
+docker exec -ti salt-master bash
+root@salt-master:/# 
+....
+
+=== Example execution commands
+.Test ping
+----
+root@salt-master:/# salt '*' test.ping
+proxy-vmx2:
+    True
+proxy-vmx1:
+    True
+root@salt-master:/# 
+----
+
+.See grains
+----
+root@salt-master:/# salt '*' grains.items
+proxy-vmx1:
+    ----------
+    cpuarch:
+        x86_64
+    dns:
+        ----------
+        domain:
+        ip4_nameservers:
+            - 127.0.0.11
+        ip6_nameservers:
+        nameservers:
+            - 127.0.0.11
+        options:
+            - ndots:0
+        search:
+            - foo.gr
+        sortlist:
+    gpus:
+...
+proxy-vmx2:
+    ----------
+    cpuarch:
+        x86_64
+    dns:
+        ----------
+        domain:
+        ip4_nameservers:
+            - 127.0.0.11
+        ip6_nameservers:
+        nameservers:
+            - 127.0.0.11
+        options:
+            - ndots:0
+        search:
+            - foo.gr
+        sortlist:
+    gpus:
+    host:
+        172.16.0.11
+    hostname:
+        vmx2
+...
+----
+
+.Show vendor
+----
+root@salt-master:/# salt '*' grains.get vendor
+proxy-vmx1:
+    Juniper
+proxy-vmx2:
+    Juniper
+root@salt-master:/# 
+----
+
+.Show router roles
+----
+root@salt-master:/# salt '*' grains.get roles
+proxy-vmx2:
+    - router
+    - core
+proxy-vmx1:
+    - router
+    - edge
+root@salt-master:/# 
+----
+The roles are grains (data) assigned by operators in each proxy, in
+our case they are set in `proxy.d/proxy-vmx1/grains`,
+`proxy.d/proxy-vmx2/grains`. 
+
+.Show all pillar data
+----
+root@salt-master:/# salt '*' pillar.items
+proxy-vmx2:
+    ----------
+    ntp.servers:
+        - 172.17.17.1
+        - 172.17.17.2
+    openconfig-interfaces:
+        ----------
+        interfaces:
+            ----------
+            interface:
+                ----------
+                fxp0:
+                    ----------
+                    config:
+                        ----------
+                        description:
+                            vmx2 mgmt interface
+                        name:
+                            fxp0
+                    name:
+                        fxp0
+                    subinterfaces:
+                        ----------
+                        subinterface:
+                            ----------
+                            0:
+                                ----------
+                                config:
+                                    ----------
+                                    description:
+                                        vmx2 fxp0.0
+                                    index:
+                                        0
+...
+----
+
+.Show a specific parameter from pillar
+----
+root@salt-master:/# salt '*' pillar.get ntp.servers
+proxy-vmx1:
+    - 172.17.17.1
+    - 172.17.17.2
+proxy-vmx2:
+    - 172.17.17.1
+    - 172.17.17.2
+root@salt-master:/# 
+----
+
+.Show arp entries of vmx1
+----
+root@salt-master:/# salt 'proxy-vmx1' net.arp
+proxy-vmx1:
+    ----------
+    comment:
+    out:
+        |_
+          ----------
+          age:
+              873.0
+          interface:
+              ge-0/0/0.0
+          ip:
+              10.1.0.10
+          mac:
+              02:42:0A:01:00:02
+        |_
+          ----------
+          age:
+              620.0
+          interface:
+              em1.0
+          ip:
+              128.0.0.16
+          mac:
+              FE:49:2B:2C:CC:F0
+        |_
+          ----------
+          age:
+              283.0
+          interface:
+              fxp0.0
+          ip:
+              172.16.0.1
+          mac:
+              02:42:49:CF:BE:FC
+        |_
+          ----------
+          age:
+              364.0
+          interface:
+              fxp0.0
+          ip:
+              172.16.0.4
+          mac:
+              02:42:AC:10:00:04
+    result:
+        True
+root@salt-master:/# 
+----
+
+=== Applying config state
+More interesting stuff have to do with configuration changes. They are
+applied through the Salt state system
+
+.Apply ntp configuration on vmx2
+----
+root@salt-master:/# salt 'proxy-vmx2' state.apply ntp test=True
+proxy-vmx2:
+----------
+          ID: ntp_servers_recipe
+    Function: netconfig.managed
+      Result: True
+     Comment: Configuration discarded.
+              
+              Loaded config:
+              
+              
+                system {
+                  replace:
+                  ntp {
+                    server 172.17.17.1;
+                    server 172.17.17.2;
+                  }
+                }
+     Started: 13:19:05.137741
+    Duration: 578.655 ms
+     Changes:   
+              ----------
+              diff:
+              loaded_config:
+                  
+                    system {
+                      replace:
+                      ntp {
+                        server 172.17.17.1;
+                        server 172.17.17.2;
+                      }
+                    }
+
+Summary for proxy-vmx2
+------------
+Succeeded: 1 (changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time: 578.655 ms
+root@salt-master:/# 
+
+----
+Remove `test=True` to actually apply the configuration.
+
+.Interfaces configuration of vmx1
+----
+root@salt-master:/# salt 'proxy-vmx1' state.apply netconfig_interfaces
+proxy-vmx1:
+----------
+          ID: netconfig_interfaces_recipe
+    Function: netconfig.managed
+      Result: True
+     Comment: Already configured.
+              
+              Loaded config:
+              
+              
+              
+              
+              groups {
+                openjnpr-container-vmx {
+                  interfaces {
+                    replace: fxp0 {
+                      description "vmx1 mgmt interface";
+                      unit 0 {
+                        description "vmx1 fxp0.0";
+                        family inet {
+                          address 172.16.0.10/24;
+                        }
+                        family inet6 {
+                          address  fd00::10/64;
+                        } 
+                      }
+                    }
+                  }
+                }
+              }
+              groups {
+                openjnpr-container-vmx {
+                  interfaces {
+                    replace: lo0 {
+                      description "vmx1 loopback interface";
+                      unit 0 {
+                        description "vmx1 lo0.0";
+                        family inet {
+                          address 127.0.0.1/32;
+                          address 13.13.13.1/32;
+                        }
+                        family inet6 {
+                          address  ::1/128;
+                          address  fd00:13::1/128;
+                        } 
+                      }
+                    }                                                                          
+                  }
+                }
+              }
+              
+              replace: 
+              interfaces {
+                  ge-0/0/0 {
+                      description "net1_p2p";
+                      mtu 9000;
+                      unit 0 {
+                          description "p2p vmx1 - vmx2";
+                          family inet {
+                              address 10.1.0.9/30;
+                          }
+                          family inet6 {
+                              address fd00:1::9/127;
+                          }
+                      }
+                  }
+              }
+     Started: 13:26:19.201358
+    Duration: 637.904 ms
+     Changes:   
+              ----------
+              diff:
+              loaded_config:
+                  
+                  
+                  
+                  groups {
+                    openjnpr-container-vmx {
+                      interfaces {
+                        replace: fxp0 {
+                          description "vmx1 mgmt interface";
+                          unit 0 {
+                            description "vmx1 fxp0.0";
+                            family inet {
+                              address 172.16.0.10/24;
+                            }
+                            family inet6 {
+                              address  fd00::10/64;
+                            } 
+                          }
+                        }
+                      }
+                    }
+                  }
+                  groups {
+                    openjnpr-container-vmx {
+                      interfaces {
+                        replace: lo0 {
+                          description "vmx1 loopback interface";
+                          unit 0 {
+                            description "vmx1 lo0.0";
+                            family inet {
+                              address 127.0.0.1/32;
+                              address 13.13.13.1/32;
+                            }
+                            family inet6 {
+                              address  ::1/128;
+                              address  fd00:13::1/128;
+                            } 
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  replace: 
+                  interfaces {
+                      ge-0/0/0 {
+                          description "net1_p2p";
+                          mtu 9000;
+                          unit 0 {
+                              description "p2p vmx1 - vmx2";
+                              family inet {
+                                  address 10.1.0.9/30;
+                              }
+                              family inet6 {
+                                  address fd00:1::9/127;
+                              }
+                          }
+                      }
+                  }
+
+Summary for proxy-vmx1
+------------
+Succeeded: 1 (changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time: 637.904 ms
+root@salt-master:/# 
+----
+
+We have set debugging output in the state so we can see the fully 
+rendered jinja template.
+
+One of the more interesting aspects is the "highstate" concept. When
+we issue `state.apply` without any arguments, provided we have a
+correctly set up top.sls state file, the system evaluates and applies
+all relevant states in a minion. This is how we can enforce many parts
+of configuration in different machines. In our case using no arguments
+enforces configuration of ntp and interfaces on each machine.
+
+.Apply all matching states (ntp/interfaces)
+----
+root@salt-master:/# salt '*' state.apply
+proxy-vmx2:
+----------
+          ID: ntp_servers_recipe
+    Function: netconfig.managed
+      Result: True
+     Comment: Already configured.
+...
+----------
+          ID: netconfig_interfaces_recipe
+    Function: netconfig.managed
+      Result: True
+     Comment: Already configured.
+...
+Summary for proxy-vmx2
+------------
+Succeeded: 2 (changed=2)
+Failed:    0
+------------
+Total states run:     2
+Total run time:   1.084 s
+proxy-vmx1:
+----------
+          ID: ntp_servers_recipe
+    Function: netconfig.managed
+      Result: True
+     Comment: Already configured.
+...
+Summary for proxy-vmx1
+------------
+Succeeded: 2 (changed=2)
+Failed:    0
+------------
+Total states run:     2
+Total run time:   1.280 s
+----
+
+=== Pillar/State data
+The pillar data are organized in the directory hierarchy under
+`pillar/` while the relavant states are in `states/`. All data are
+in .sls files which are actually jinja/yaml by default. Pillar data
+are in fact plain yaml files. The network interfaces yaml files for
+the two routers conform to Openconfig network interfaces YANG
+module. The Openconfig models are included in `yaml/public` as a git
+submodule for full reference.
+
+==== Generate interfaces pillar data
+A python script is included in `yang/interfaces/` called
+`gen-interfaces-pillar.py`. This utilizes `pyangbind` to generate yaml
+instances of interfaces data that conform to the YANG model. In order
+to demonstrate the usage of the script, the data are given as input
+yaml files (`vmx1-interfaces.yml`, `vmx2-interfaces.yml`) although in
+real life these data should be extracted from a network inventory
+system.
+
+To run the script, a `Pipfile` is included in `yang/`. Run
+
+ $ pipenv install
+
+inside the `yang/` directory and then
+
+ $ pipenv shell
+
+You are placed in a Python virtualenv containing all dependencies. The
+script can then be run inside the virtualenv
+
+....
+(yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./gen-interfaces-pillar.py -h
+Generate YAML file for salt pillar containing router interfaces configuration.
+Configuration adheres to Openconfig interfaces model.
+
+Usage:
+  gen-interfaces-pillar.py (--version|--help)
+  gen-interfaces-pillar.py [-i <indent>] [--ietf] [<interfaces_file>] [<pillar_file>] 
+
+Arguments:
+  -i, --indent=INDENT  Number of spaces to indent [default: 2].
+  --ietf               Produce YAML output according to IETF conventions 
+                       (default is Openconfig conventions).
+  <interfaces_file>    The input file containing a network device's interfaces in YAML 
+                       format. This information should come from a network inventory 
+                       system in a real setup. If not specified, reads from stdin.
+  <pillar_file>        The output file to be used in Salt pillar. YAML format, conforms to 
+                       openconfig interfaces YANG model.
+                       See https://github.com/openconfig/public (openconfig-interfaces.yang, 
+                       openconfig-if-ip.yang).
+                       This should be pushed as configuration to the target device via Salt.  
+                       If not specified, writes to stdout.
+....
+
+.Generate interfaces pillar data for vmx1
+----
+(yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./prepare.sh 
+Generating pyang bindings for interfaces...
+Bindings successfully generated!
+Generating text tree representation of interfaces model
+Generating html tree representation of interfaces model
+------------------------------------------------
+Done. You can now use gen-interfaces-pillar.py. 
+Model representations are in                    
+openconfig-if-ip.txt, openconfig-if-ip.html     
+------------------------------------------------
+
+(yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./gen-interfaces-pillar.py vmx1-interfaces.yml 
+openconfig-interfaces:
+  interfaces:
+    interface:
+      fxp0:
+        config:
+          description: vmx1 mgmt interface
+          name: fxp0
+        name: fxp0
+        subinterfaces:
+          subinterface:
+            '0':
+              config:
+                description: vmx1 fxp0.0
+                index: 0
+              index: '0'
+              ipv4:
+                addresses:
+                  address:
+                    172.16.0.10:
+                      config:
+                        ip: 172.16.0.10
+                        prefix-length: 24
+                      ip: 172.16.0.10
+              ipv6:
+                addresses:
+                  address:
+                    fd00::10:
+                      config:
+                        ip: fd00::10
+                        prefix-length: 64
+                      ip: fd00::10
+      ge-0/0/0:
+        config:
+          description: net1_p2p
+          mtu: 9000
+          name: ge-0/0/0
+        name: ge-0/0/0
+        subinterfaces:
+          subinterface:
+            '0':
+              config:
+                description: p2p vmx1 - vmx2
+                index: 0
+              index: '0'
+              ipv4:
+                addresses:
+                  address:
+                    10.1.0.9:
+                      config:
+                        ip: 10.1.0.9
+                        prefix-length: 30
+                      ip: 10.1.0.9
+              ipv6:
+                addresses:
+                  address:
+                    fd00:1::9:
+                      config:
+                        ip: fd00:1::9
+                        prefix-length: 127
+                      ip: fd00:1::9
+      lo0:
+        config:
+          description: vmx1 loopback interface
+          name: lo0
+        name: lo0
+        subinterfaces:
+          subinterface:
+            '0':
+              config:
+                description: vmx1 lo0.0
+                index: 0
+              index: '0'
+              ipv4:
+                addresses:
+                  address:
+                    127.0.0.1:
+                      config:
+                        ip: 127.0.0.1
+                        prefix-length: 32
+                      ip: 127.0.0.1
+                    13.13.13.1:
+                      config:
+                        ip: 13.13.13.1
+                        prefix-length: 32
+                      ip: 13.13.13.1
+              ipv6:
+                addresses:
+                  address:
+                    ::1:
+                      config:
+                        ip: ::1
+                        prefix-length: 128
+                      ip: ::1
+                    fd00:13::1:
+                      config:
+                        ip: fd00:13::1
+                        prefix-length: 128
+                      ip: fd00:13::1
+----
+
+== Contributing
+New configuration management cases as examples to include in the lab
+environment are highly welcome. Ideally the lab could be extended to
+support other vendors' devices. As a last step different devices
+topologies could be described and simulated. 
+
+== Credits - References
+Nothing here is new or innovative, it is just a combination of
+existing work. We utilized the very good work and information in
+
+. https://github.com/Juniper/OpenJNPR-Container-vMX[Juniper/OpenJNPR-Container-vMX] repo by https://github.com/mwiget[Marcel Wiget] 
+. https://mirceaulinic.net/2018-04-04-salt-network-automation-docker-quickstart/[Getting started with Salt for network automation using Docker] by https://mirceaulinic.net/[Mircea Ulinic]
+. https://docs.saltstack.com[SaltStack Documentation]
+. https://github.com/napalm-automation/napalm[NAPALM]
+. https://github.com/openconfig/public[Openconfig YANG Data Models]
+. https://github.com/mbj4668/pyang[pyang], https://github.com/robshakir/pyangbind[pyangbind]
+
