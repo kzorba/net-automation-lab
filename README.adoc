@@ -114,11 +114,16 @@ playground. The user is encouraged to create a different key-pair using
  $ ssh-keygen -b 2048 -t rsa
 
 The key-pair included in the repository is given for convenience to
-have everything working out of the box. You could also configure
+have everything working out of the box. Be aware that you need to
+change the permissions of the private key (UNIX 600) for it to be
+functional.  
+
+You could also configure
 NAPALM to use a username/password combination, see
 `pillar/proxy-vmx1.sls`, `pillar/proxy-vmx2.sls`. The JunOS
 username/password are given by running `juniper-vmx/getpass.sh` after
-the images have started and are fully functional (takes a few minutes).
+the images have started and are fully functional (could take minutes,
+depends on your hardware).
 
 === Run the lab
 After completing all the above steps issue
@@ -128,6 +133,11 @@ After completing all the above steps issue
 from the top level repo directory and the environment should
 start. `docker-compose` controls the environment and creates the
 necessary images and networks.
+
+ $ make stop
+
+cleans up the environment and destroys docker containers to end the
+lab. 
 
  $ make master-cli
 
@@ -140,12 +150,33 @@ commands.
 provide access to the vMX consoles (exit using ^P ^Q).
 Watch JunOS consoles or their docker containers' logs to see when they
 are up and fully functional. Running `getpass.sh` should also give you
-indication and when fully up and running you will see something like
+indication
+
+CAUTION: give strict permissions (600) to `napalm-ssh-keys/id_rsa` for
+it to be functional
+
+ $ kzorba@host:~/WorkingArea/net-automation-lab$ chmod 600 napalm-ssh-keys/id_rsa
+
+when fully up and running you will see something like
 
 ....
 kzorba@host:~/WorkingArea/net-automation-lab$ ./juniper-vmx/getpass.sh 
 vMX vmx1 (v4:172.16.0.10 v6:fd00::10) 17.3R2.10 shaetheefiofifaongeiphii         ready
 vMX vmx2 (v4:172.16.0.11 v6:fd00::11) 18.2R1.9 ooj8noeTheiFook6aengeib9          ready
+....
+
+You can also ssh directly to the vMX devices
+
+....
+kzorba@host:~/WorkingArea/net-automation-lab$ ssh -i napalm-ssh-keys/id_rsa 172.16.0.10
+Last login: Fri Feb  1 13:17:54 2019 from 172.16.0.1
+--- JUNOS 17.3R2.10 Kernel 64-bit  JNPR-10.3-20180204.bcafb2a_buil
+kzorba@vmx1>exit 
+
+kzorba@host:~/WorkingArea/net-automation-lab$ ssh -i napalm-ssh-keys/id_rsa 172.16.0.11
+Last login: Fri Feb  1 13:18:16 2019 from 172.16.0.1
+--- JUNOS 18.2R1.9 Kernel 64-bit  JNPR-11.0-20180614.6c3f819_buil
+kzorba@vmx2> 
 ....
 
 == Usage
@@ -617,9 +648,24 @@ inside the `yang/` directory and then
  $ pipenv shell
 
 You are placed in a Python virtualenv containing all dependencies. The
-script can then be run inside the virtualenv
+script can then be run inside the virtualenv.
 
-....
+You should first run `prepare.sh`, this needs to be done just once to
+generate pyangbind bindings. 
+
+.Generate interfaces pillar data for vmx1
+----
+(yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./prepare.sh 
+Generating pyang bindings for interfaces...
+Bindings successfully generated!
+Generating text tree representation of interfaces model
+Generating html tree representation of interfaces model
+------------------------------------------------
+Done. You can now use gen-interfaces-pillar.py. 
+Model representations are in                    
+openconfig-if-ip.txt, openconfig-if-ip.html     
+------------------------------------------------
+
 (yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./gen-interfaces-pillar.py -h
 Generate YAML file for salt pillar containing router interfaces configuration.
 Configuration adheres to Openconfig interfaces model.
@@ -641,20 +687,6 @@ Arguments:
                        openconfig-if-ip.yang).
                        This should be pushed as configuration to the target device via Salt.  
                        If not specified, writes to stdout.
-....
-
-.Generate interfaces pillar data for vmx1
-----
-(yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./prepare.sh 
-Generating pyang bindings for interfaces...
-Bindings successfully generated!
-Generating text tree representation of interfaces model
-Generating html tree representation of interfaces model
-------------------------------------------------
-Done. You can now use gen-interfaces-pillar.py. 
-Model representations are in                    
-openconfig-if-ip.txt, openconfig-if-ip.html     
-------------------------------------------------
 
 (yang) kzorba@host: ~/WorkingArea/net-automation-lab/yang/interfaces (master)-> ./gen-interfaces-pillar.py vmx1-interfaces.yml 
 openconfig-interfaces:
